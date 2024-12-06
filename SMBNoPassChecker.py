@@ -2,6 +2,7 @@
 
 import argparse
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 
 def load_file(file_path):
     """
@@ -97,6 +98,15 @@ def main():
         help="Enable verbose mode",
     )
 
+    parser.add_argument(
+        '-t',
+        '--threads',
+        required=False,
+        type=int,
+        default=5,
+        help="Number of threads to use for concurrent processing",
+    )
+
     args = parser.parse_args()
     server = args.server
     users_file = args.users_list
@@ -109,14 +119,16 @@ def main():
         print("[Error] Ensure both files are correctly specified and non-empty.")
         return
 
-    print(f"\n[INFO] Testing SMB access on server '{server}' with {len(users)} users and {len(shares)} shares, Please wait...\n")
+    print(f"\n[INFO] Testing SMB access on server '{server}' with {len(users)} users and {len(shares)} shares using {args.threads} threads. Please wait...\n")
 
-    for user in users:
-        for share in shares:
-            check_smb_access(server, share, user, args.output, args.verbose)
+    # Prepare tasks
+    tasks = [(server, share, user, args.output, args.verbose) for user in users for share in shares]
+
+    # Use ThreadPoolExecutor for multithreading
+    with ThreadPoolExecutor(max_workers=args.threads) as executor:
+        executor.map(lambda params: check_smb_access(*params), tasks)
 
     print(f'\n[INFO] Check results on: {args.output}')
 
 if __name__ == "__main__":
     main()
-
